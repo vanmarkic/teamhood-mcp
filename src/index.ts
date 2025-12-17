@@ -133,14 +133,13 @@ const tools: Tool[] = [
     },
   },
   {
-    name: "update_workspace_member",
-    description: "Add or update a user's role in a workspace",
+    name: "add_workspace_member",
+    description: "Add a user to a workspace with Collaborator role (API does not support custom roles)",
     inputSchema: {
       type: "object",
       properties: {
         workspaceId: { type: "string", description: "Workspace UUID" },
-        userId: { type: "string", description: "User UUID" },
-        role: { type: "string", description: "Role to assign (e.g., admin, member)" },
+        userId: { type: "string", description: "User UUID to add" },
       },
       required: ["workspaceId", "userId"],
     },
@@ -178,15 +177,15 @@ const tools: Tool[] = [
       properties: {
         workspaceId: { type: "string", description: "Workspace UUID where board will be created" },
         title: { type: "string", description: "Board title" },
-        displayId: { type: "string", description: "Short display ID (e.g., 'Q1PRIO')" },
+        displayId: { type: "string", description: "Short display ID (e.g., 'Q1PRIO') - required" },
         templateId: { type: "string", description: "Board template UUID (use list_board_templates to get available templates)" },
         viewType: {
           type: "string",
-          enum: ["Kanban", "Gantt", "Timeline", "List"],
+          enum: ["Kanban", "Gantt", "List", "Overview"],
           description: "Default view type for the board"
         },
       },
-      required: ["workspaceId", "title", "templateId"],
+      required: ["workspaceId", "title", "displayId", "templateId", "viewType"],
     },
   },
   {
@@ -236,11 +235,19 @@ const tools: Tool[] = [
         workspaceId: { type: "string", description: "Filter by workspace UUID" },
         boardId: { type: "string", description: "Filter by board UUID" },
         statusId: { type: "string", description: "Filter by status UUID" },
-        assigneeId: { type: "string", description: "Filter by assignee user UUID" },
-        search: { type: "string", description: "Search text in item titles" },
+        rowId: { type: "string", description: "Filter by row UUID" },
+        assignedUserId: { type: "string", description: "Filter by assigned user UUID" },
+        ownerId: { type: "string", description: "Filter by owner user UUID" },
+        parentId: { type: "string", description: "Filter by parent item UUID" },
+        completed: { type: "boolean", description: "Filter by completion status" },
+        tags: { type: "array", items: { type: "string" }, description: "Filter by tags" },
+        customFields: { type: "array", items: { type: "string" }, description: "Filter by custom fields, e.g. ['\"Project\"=\"Cars\"']" },
+        createdSince: { type: "string", description: "Filter items created since (ISO 8601)" },
+        modifiedSince: { type: "string", description: "Filter items modified since (ISO 8601)" },
+        completedSince: { type: "string", description: "Filter items completed since (ISO 8601)" },
+        includeChildItems: { type: "boolean", description: "Include child items in results" },
         skip: { type: "number", description: "Pagination: records to skip" },
         take: { type: "number", description: "Pagination: records to return (max 100)" },
-        customFields: { type: "string", description: "Filter by custom fields, e.g. '\"Project\"=\"Cars\"'" },
       },
     },
   },
@@ -267,11 +274,10 @@ const tools: Tool[] = [
         title: { type: "string", description: "Item title" },
         description: { type: "string", description: "Rich text description" },
         rowId: { type: "string", description: "Row UUID for swimlane placement" },
-        assigneeIds: { type: "array", items: { type: "string" }, description: "User UUIDs to assign" },
+        assigneeId: { type: "string", description: "User UUID to assign (single assignee)" },
         startDate: { type: "string", description: "Start date (ISO 8601 format)" },
         dueDate: { type: "string", description: "Due date (ISO 8601 format)" },
         color: { type: "number", description: "Color index (1-18)" },
-        priority: { type: "string", description: "Priority level" },
         tags: { type: "array", items: { type: "string" }, description: "Tags to apply to the item" },
         customFields: {
           type: "array",
@@ -312,7 +318,7 @@ const tools: Tool[] = [
   },
   {
     name: "update_item",
-    description: "Update item properties (title, status, assignees, dependencies, etc.)",
+    description: "Update item properties (title, status, board, assignee, dates, etc.)",
     inputSchema: {
       type: "object",
       properties: {
@@ -321,11 +327,11 @@ const tools: Tool[] = [
         description: { type: "string", description: "New description" },
         statusId: { type: "string", description: "New status UUID (move to different column)" },
         rowId: { type: "string", description: "New row UUID (move to different swimlane)" },
-        assigneeIds: { type: "array", items: { type: "string" }, description: "New assignee user UUIDs" },
+        boardId: { type: "string", description: "New board UUID (move to different board)" },
+        assigneeId: { type: "string", description: "User UUID to assign (single assignee)" },
         startDate: { type: "string", description: "New start date (ISO 8601)" },
         dueDate: { type: "string", description: "New due date (ISO 8601)" },
         color: { type: "number", description: "Color index (1-18)" },
-        priority: { type: "string", description: "New priority level" },
         tags: { type: "array", items: { type: "string" }, description: "Tags for the item" },
         customFields: {
           type: "array",
@@ -360,6 +366,10 @@ const tools: Tool[] = [
           },
           description: "Items this task waits for (replaces existing)",
         },
+        archived: { type: "boolean", description: "Archive or unarchive the item" },
+        milestone: { type: "boolean", description: "Mark as milestone" },
+        progress: { type: "number", description: "Progress percentage (0-100)" },
+        parentId: { type: "string", description: "Parent item UUID for sub-items" },
       },
       required: ["itemId"],
     },
@@ -481,20 +491,7 @@ const tools: Tool[] = [
   },
 
   // === TIME TRACKING ===
-  {
-    name: "log_time",
-    description: "Log time spent working on an item",
-    inputSchema: {
-      type: "object",
-      properties: {
-        itemId: { type: "string", description: "Item UUID to log time against" },
-        duration: { type: "number", description: "Time spent in minutes" },
-        date: { type: "string", description: "Date of work (ISO 8601)" },
-        description: { type: "string", description: "What was done" },
-      },
-      required: ["itemId", "duration"],
-    },
-  },
+  // Note: API does not support creating timelogs, only reading them
   {
     name: "get_time_logs",
     description: "Get time logs for a workspace within a date range. Can filter by boards, rows, users, or tags.",
@@ -579,11 +576,11 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
         ownerId: args.ownerId,
       });
 
-    case "update_workspace_member":
+    case "add_workspace_member":
       return apiRequest(
         `/workspaces/${args.workspaceId}/users/${args.userId}`,
         "PUT",
-        { role: args.role }
+        {} // API only accepts requestId (optional), role is fixed to Collaborator
       );
 
     case "list_boards":
@@ -603,7 +600,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
         title: args.title,
         displayId: args.displayId,
         templateId: args.templateId,
-        viewType: args.viewType || "Kanban",
+        viewType: args.viewType,
       });
 
     case "list_rows":
@@ -623,14 +620,30 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
     // === ITEMS ===
     case "list_items": {
       const params = new URLSearchParams();
-      if (args.workspaceId) params.append("workspaceId", args.workspaceId as string);
-      if (args.boardId) params.append("boardId", args.boardId as string);
-      if (args.statusId) params.append("statusId", args.statusId as string);
-      if (args.assigneeId) params.append("assigneeId", args.assigneeId as string);
-      if (args.search) params.append("search", args.search as string);
-      if (args.skip !== undefined) params.append("skip", String(args.skip));
-      if (args.take !== undefined) params.append("take", String(args.take));
-      if (args.customFields) params.append("CustomFields", args.customFields as string);
+      if (args.workspaceId) params.append("WorkspaceId", args.workspaceId as string);
+      if (args.boardId) params.append("BoardId", args.boardId as string);
+      if (args.statusId) params.append("StatusId", args.statusId as string);
+      if (args.rowId) params.append("RowId", args.rowId as string);
+      if (args.assignedUserId) params.append("AssignedUserId", args.assignedUserId as string);
+      if (args.ownerId) params.append("OwnerId", args.ownerId as string);
+      if (args.parentId) params.append("ParentId", args.parentId as string);
+      if (args.completed !== undefined) params.append("Completed", String(args.completed));
+      if (args.tags) {
+        for (const tag of args.tags as string[]) {
+          params.append("Tags", tag);
+        }
+      }
+      if (args.customFields) {
+        for (const cf of args.customFields as string[]) {
+          params.append("CustomFields", cf);
+        }
+      }
+      if (args.createdSince) params.append("CreatedSince", args.createdSince as string);
+      if (args.modifiedSince) params.append("ModifiedSince", args.modifiedSince as string);
+      if (args.completedSince) params.append("CompletedSince", args.completedSince as string);
+      if (args.includeChildItems !== undefined) params.append("IncludeChildItems", String(args.includeChildItems));
+      if (args.skip !== undefined) params.append("Skip", String(args.skip));
+      if (args.take !== undefined) params.append("Take", String(args.take));
       const query = params.toString();
       return apiRequest(`/items${query ? `?${query}` : ""}`);
     }
@@ -646,15 +659,17 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
         title: args.title,
         description: args.description,
         rowId: args.rowId,
-        assigneeIds: args.assigneeIds,
+        assignedUserId: args.assigneeId, // API uses singular assignedUserId
         startDate: args.startDate,
         dueDate: args.dueDate,
         color: args.color,
-        priority: args.priority,
-        tags: args.tags,
-        customFields: args.customFields,
-        blocking: args.blocking,
-        waiting: args.waiting,
+        tags: args.tags || [],
+        customFields: args.customFields || [],
+        blocking: args.blocking || [],
+        waiting: args.waiting || [],
+        milestone: false,
+        isSuspended: false,
+        suspendReason: "",
       });
 
     case "update_item": {
@@ -663,16 +678,21 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       if (args.description !== undefined) updateData.description = args.description;
       if (args.statusId !== undefined) updateData.statusId = args.statusId;
       if (args.rowId !== undefined) updateData.rowId = args.rowId;
-      if (args.assigneeIds !== undefined) updateData.assigneeIds = args.assigneeIds;
+      if (args.boardId !== undefined) updateData.boardId = args.boardId;
+      if (args.assigneeId !== undefined) updateData.userId = args.assigneeId; // API uses userId for update
       if (args.startDate !== undefined) updateData.startDate = args.startDate;
       if (args.dueDate !== undefined) updateData.dueDate = args.dueDate;
       if (args.color !== undefined) updateData.color = args.color;
-      if (args.priority !== undefined) updateData.priority = args.priority;
       if (args.tags !== undefined) updateData.tags = args.tags;
       if (args.customFields !== undefined) updateData.customFields = args.customFields;
       if (args.blocking !== undefined) updateData.blocking = args.blocking;
       if (args.waiting !== undefined) updateData.waiting = args.waiting;
-      return apiRequest(`/items/${args.itemId}`, "PUT", updateData);
+      if (args.archived !== undefined) updateData.archived = args.archived;
+      if (args.milestone !== undefined) updateData.milestone = args.milestone;
+      if (args.progress !== undefined) updateData.progress = args.progress;
+      if (args.parentId !== undefined) updateData.parentId = args.parentId;
+      // API expects { data: { ...fields } } structure
+      return apiRequest(`/items/${args.itemId}`, "PUT", { data: updateData });
     }
 
     case "delete_item":
@@ -745,14 +765,6 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       return apiRequest("/users");
 
     // === TIME TRACKING ===
-    case "log_time":
-      return apiRequest("/timelogs", "POST", {
-        itemId: args.itemId,
-        duration: args.duration,
-        date: args.date,
-        description: args.description,
-      });
-
     case "get_time_logs":
       return apiRequest("/timelogs", "POST", {
         workspaceId: args.workspaceId,

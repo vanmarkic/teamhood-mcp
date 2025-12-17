@@ -1,17 +1,50 @@
 {
   "name": "teamhood-mcp",
   "version": "1.0.0",
-  "description": "MCP server for Teamhood API",
+  "description": "MCP server for Teamhood project management API - enables AI assistants to manage workspaces, boards, items, and more",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
     "teamhood-mcp": "dist/index.js"
   },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "prepublishOnly": "npm run build && npm audit --audit-level=moderate",
+    "audit": "npm audit",
+    "audit:fix": "npm audit fix"
   },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "teamhood",
+    "project-management",
+    "claude",
+    "ai",
+    "automation"
+  ],
+  "author": "vanmarkic",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vanmarkic/teamhood-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/vanmarkic/teamhood-mcp/issues"
+  },
+  "homepage": "https://github.com/vanmarkic/teamhood-mcp#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0"
   },

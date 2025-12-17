@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+*.log
+.DS_Store
+
+# SOPS - only commit encrypted secrets
+# The unencrypted secrets.yaml should NEVER be committed
+# Encrypt with: sops -e secrets.yaml > secrets.enc.yaml
+secrets.yaml
+!secrets.enc.yaml

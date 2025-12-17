@@ -1,0 +1,9 @@
+# SOPS configuration
+# Configure your encryption key (age, pgp, or cloud KMS)
+# Example with age:
+creation_rules:
+  - path_regex: secrets\.yaml$
+    age: >-
+      # Replace with your age public key
+      # Generate with: age-keygen -o key.txt
+      # Your public key will be shown

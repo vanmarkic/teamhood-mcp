@@ -813,6 +813,8 @@ const server = new Server(
   {
     name: "teamhood-mcp",
     version: "2.0.0",
+    description: "MCP server for Teamhood project management API - enables AI assistants to manage workspaces, boards, items, and more",
+    websiteUrl: "https://github.com/vanmarkic/teamhood-mcp",
   },
   {
     capabilities: {
